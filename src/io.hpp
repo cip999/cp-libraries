@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <exception>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -42,10 +43,10 @@ class UnexpectedReadException : public IOException {
                       ")") {}
 };
 
-class IntegerOverflowException : public IOException {
+class OverflowException : public IOException {
    public:
     template <class T>
-    explicit IntegerOverflowException(T max_integer)
+    explicit OverflowException(T max_integer)
         : IOException("Integer read overflow: exceeded limit " +
                       std::to_string(max_integer)) {}
 };
@@ -71,6 +72,13 @@ class Reader {
 
     template <class T>
     T read_integer_strict();
+
+    template <class T>
+    T read_floating_point_strict();
+
+    std::string read_string_strict(
+        std::function<bool(std::size_t, char)> const& check_char,
+        std::size_t min_length, std::size_t max_length);
 
    public:
     Reader() = default;
@@ -124,6 +132,17 @@ class Reader {
 
     template <class T>
     T read_integer();
+
+    template <class T>
+    T read_floating_point();
+
+    std::string read_string(std::size_t exact_length);
+    std::string read_string(std::size_t min_length, std::size_t max_length);
+    std::string read_string(std::string const& allowed_chars,
+                            std::size_t min_length, std::size_t max_length);
+    std::string read_string(
+        std::function<bool(std::size_t, char)> const& check_char,
+        std::size_t min_length, std::size_t max_length);
 
     template <class T>
     friend Reader& operator>>(Reader& r, T& v);
@@ -202,15 +221,15 @@ T Reader::read_unsigned_strict() {
                 }
                 break;
             }
-            if (c == '0' && n == 0 && !start && !leading_zeros) {
-                throw UnexpectedReadException(c);
+            if (n == 0 && !start && !leading_zeros) {
+                throw UnexpectedReadException('0');
             }
             start = false;
             long long units = static_cast<T>(c - '0');
-            if (n > (limit - units) / 10) {
-                throw IntegerOverflowException(limit);
+            if (n > (limit - units) / T(10)) {
+                throw OverflowException(limit);
             }
-            n = 10 * n + units;
+            n = T(10) * n + units;
         } while (true);
     } catch (EOFException const& e) {
         if (start) {
@@ -238,7 +257,7 @@ T Reader::read_signed_strict() {
     unsigned_T limit =
         negative ? static_cast<unsigned_T>(0) - std::numeric_limits<T>::min()
                  : static_cast<unsigned_T>(std::numeric_limits<T>::max());
-    if (n > limit) throw IntegerOverflowException(limit);
+    if (n > limit) throw OverflowException(limit);
     if (negative) {
         // This should work because of two's complement.
         return static_cast<T>(static_cast<unsigned_T>(0) - n);
@@ -256,14 +275,130 @@ T Reader::read_integer_strict() {
 
 template <class T>
 T Reader::read_integer() {
-    static_assert(std::is_arithmetic_v<T>, "Type must be numeric");
+    static_assert(std::is_integral_v<T>, "Type must be integral");
     if (!strict) skip_non_numeric();
     return read_integer_strict<T>();
 }
 
 template <class T>
+T Reader::read_floating_point_strict() {
+    std::string x_string;
+    char c;
+    bool is_zero = true;
+    bool after_decimal_separator = false;
+    try {
+        do {
+            c = read_char();
+            if (!is_numeric(c) && c != '-' && c != decimal_separator) {
+                if (x_string.empty()) {
+                    throw UnexpectedReadException(c);
+                }
+                source->unget();
+                break;
+            }
+            if (c == '-' && !x_string.empty()) {
+                throw UnexpectedReadException('-');
+            }
+            if (c == decimal_separator) {
+                if (x_string.empty() || x_string == "-" ||
+                    after_decimal_separator) {
+                    throw UnexpectedReadException(decimal_separator);
+                }
+                after_decimal_separator = true;
+                x_string.push_back('.');
+                continue;
+            }
+            if (is_zero && !leading_zeros && !after_decimal_separator &&
+                !x_string.empty() && x_string != "-") {
+                throw UnexpectedReadException('0');
+            }
+            if (is_numeric(c) && c != '0') {
+                is_zero = false;
+            }
+            x_string.push_back(c);
+        } while (true);
+    } catch (EOFException const& e) {
+        if (x_string.empty() || !is_numeric(x_string.back())) {
+            throw e;
+        }
+    }
+    T x;
+    std::istringstream(x_string) >> x;
+    return x;
+}
+
+template <class T>
+T Reader::read_floating_point() {
+    static_assert(std::is_floating_point_v<T>, "Type must be floating point");
+    if (!strict) skip_non_numeric();
+    return read_floating_point_strict<T>();
+}
+
+std::string Reader::read_string_strict(
+    std::function<bool(std::size_t, char)> const& check_char,
+    std::size_t min_length = 0, std::size_t max_length = std::string::npos) {
+    std::string s;
+    s.reserve(min_length);
+    char c;
+    try {
+        for (std::size_t i = 0;; ++i) {
+            c = read_char();
+            if (is_space(c)) {
+                if (i == 0) {
+                    throw UnexpectedReadException("non-space character");
+                }
+                source->unget();
+                break;
+            }
+            if (i >= max_length) {
+                throw UnexpectedReadException("string of length <= " +
+                                              std::to_string(max_length));
+            }
+            if (!check_char(i, c)) {
+                throw UnexpectedReadException(c);
+            }
+            s.push_back(c);
+        }
+    } catch (EOFException const&) {
+    }
+    if (s.size() < min_length) {
+        throw UnexpectedReadException("string of length >= " +
+                                      std::to_string(min_length));
+    }
+    return s;
+}
+
+std::string Reader::read_string(std::size_t exact_length = 0) {
+    return exact_length > 0 ? read_string(exact_length, exact_length)
+                            : read_string(0, std::string::npos);
+}
+
+std::string Reader::read_string(std::size_t min_length,
+                                std::size_t max_length) {
+    return read_string([](std::size_t i, char c) { return true; }, min_length,
+                       max_length);
+}
+
+std::string Reader::read_string(std::string const& allowed_chars,
+                                std::size_t min_length = 0,
+                                std::size_t max_length = std::string::npos) {
+    return read_string(
+        [&allowed_chars](std::size_t i, char c) {
+            return allowed_chars.find(c) != std::string::npos;
+        },
+        min_length, max_length);
+}
+
+std::string Reader::read_string(
+    std::function<bool(std::size_t, char)> const& check_char,
+    std::size_t min_length = 0, std::size_t max_length = std::string::npos) {
+    if (!strict) skip_spaces();
+    return read_string_strict(check_char, min_length, max_length);
+}
+
+template <class T>
 Reader& operator>>(Reader& r, T& v) {
-    if (std::is_arithmetic_v<T>) {
+    if (std::is_integral_v<T>) {
         v = r.read_integer<T>();
     } else {
         throw std::runtime_error("Unimplemented");
