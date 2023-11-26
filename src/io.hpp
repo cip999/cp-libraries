@@ -6,7 +6,6 @@
 #include <memory>
 #include <sstream>
 #include <string>
-#include <vector>
 
 namespace cplib {
 
@@ -89,9 +88,7 @@ class Reader {
         this->strict = strict;
     }
 
-    ~Reader() {
-        source.get_deleter()(source.release());
-    }
+    ~Reader() { source.get_deleter()(source.release()); }
 
     Reader& with_string_stream(std::string const& s) {
         source.reset(new std::istringstream(s));
@@ -129,7 +126,7 @@ class Reader {
     T read_integer();
 
     template <class T>
-    friend Reader& operator >>(Reader& r, T& v);
+    friend Reader& operator>>(Reader& r, T& v);
 };
 
 void Reader::must_be_space() {
@@ -238,9 +235,9 @@ T Reader::read_signed_strict() {
     }
     using unsigned_T = std::make_unsigned_t<T>;
     unsigned_T n = read_unsigned_strict<unsigned_T>();
-    unsigned_T limit = negative
-        ? static_cast<unsigned_T>(0) - std::numeric_limits<T>::min()
-        : static_cast<unsigned_T>(std::numeric_limits<T>::max());
+    unsigned_T limit =
+        negative ? static_cast<unsigned_T>(0) - std::numeric_limits<T>::min()
+                 : static_cast<unsigned_T>(std::numeric_limits<T>::max());
     if (n > limit) throw IntegerOverflowException(limit);
     if (negative) {
         // This should work because of two's complement.
@@ -249,35 +246,28 @@ T Reader::read_signed_strict() {
     return static_cast<T>(n);
 }
 
-template <>
-unsigned int Reader::read_integer_strict() {
-    return read_unsigned_strict<unsigned int>();
-}
-
-template <>
-int Reader::read_integer_strict() {
-    return read_signed_strict<int>();
-}
-
-template <>
-unsigned long long Reader::read_integer_strict() {
-    return read_unsigned_strict<unsigned long long>();
-}
-
-template <>
-long long Reader::read_integer_strict() {
-    return read_signed_strict<long long>();
+template <class T>
+T Reader::read_integer_strict() {
+    if (std::is_signed_v<T>) {
+        return read_signed_strict<T>();
+    }
+    return read_unsigned_strict<T>();
 }
 
 template <class T>
 T Reader::read_integer() {
+    static_assert(std::is_arithmetic_v<T>, "Type must be numeric");
     if (!strict) skip_non_numeric();
     return read_integer_strict<T>();
 }
 
-template<class T>
-Reader& operator >>(Reader& r, T& v) {
-    v = r.read_integer<T>();
+template <class T>
+Reader& operator>>(Reader& r, T& v) {
+    if (std::is_arithmetic_v<T>) {
+        v = r.read_integer<T>();
+    } else {
+        throw std::runtime_error("Unimplemented");
+    }
     return r;
 }
 
