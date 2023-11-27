@@ -159,7 +159,8 @@ class Reader {
     std::vector<T> read_n_integers(std::size_t n, T min_value, T max_value);
 
     template <class T>
-    std::vector<T> read_n_integers(std::size_t n, T min_value, T max_value, std::string sep);
+    std::vector<T> read_n_integers(std::size_t n, T min_value, T max_value,
+                                   std::string sep);
 
     template <class T>
     std::vector<T> read_n_floating_point(std::size_t n);
@@ -364,8 +365,8 @@ template <class T>
 T Reader::read_integer(T min_value, T max_value) {
     T n = read_integer<T>();
     if (n < min_value || n > max_value) {
-        throw FailedValidationException::interval_constraint(min_value,
-                                                             max_value, "n");
+        throw FailedValidationException::interval_constraint("n", min_value,
+                                                             max_value);
     }
     return n;
 }
@@ -461,14 +462,16 @@ std::vector<T> Reader::read_n_integers(std::size_t n, std::string sep) {
 }
 
 template <class T>
-std::vector<T> Reader::read_n_integers(std::size_t n, T min_value, T max_value) {
+std::vector<T> Reader::read_n_integers(std::size_t n, T min_value,
+                                       T max_value) {
     return read_n_numbers<T>(n, [this, min_value, max_value]() {
         return read_integer<T>(min_value, max_value);
     });
 }
 
 template <class T>
-std::vector<T> Reader::read_n_integers(std::size_t n, T min_value, T max_value, std::string sep) {
+std::vector<T> Reader::read_n_integers(std::size_t n, T min_value, T max_value,
+                                       std::string sep) {
     if (sep.empty()) {
         throw InvalidArgumentException("Argument 'sep' must be non-empty");
     }
@@ -478,7 +481,8 @@ std::vector<T> Reader::read_n_integers(std::size_t n, T min_value, T max_value, 
     return read_n_numbers<T>(n, [this, &n, min_value, max_value, sep]() {
         T x = read_integer_strict<T>();
         if (x < min_value || x > max_value) {
-            throw FailedValidationException::interval_constraint(min_value, max_value, "x");
+            throw FailedValidationException::interval_constraint("x", min_value,
+                                                                 max_value);
         }
         if (n > 0) {
             read_constant(sep);
@@ -528,11 +532,13 @@ std::string Reader::read_string_strict(
                 break;
             }
             if (i >= max_length) {
-                throw UnexpectedReadException("string of length <= " +
-                                              std::to_string(max_length));
+                throw FailedValidationException::interval_constraint(
+                    "len(string)", min_length, max_length);
             }
             if (!check_char(i, c)) {
-                throw UnexpectedReadException(c);
+                throw FailedValidationException(
+                    "Invalid character '" + std::to_string(c) +
+                    "' at position " + std::to_string(i));
             }
             s.push_back(c);
         }
@@ -542,8 +548,8 @@ std::string Reader::read_string_strict(
         }
     }
     if (s.size() < min_length) {
-        throw UnexpectedReadException("string of length >= " +
-                                      std::to_string(min_length));
+        throw FailedValidationException::interval_constraint(
+            "len(string)", min_length, max_length);
     }
     return s;
 }
