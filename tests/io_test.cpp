@@ -180,16 +180,19 @@ TEST_F(ReaderTestNonStrict, ReadString_WhenIncorrect_ShouldThrow) {
     EXPECT_THROW(reader.read_string(15, 20), io::UnexpectedReadException);
 
     reader.with_string_stream(input);
-    EXPECT_THROW(reader.read_string("abcdefghijklmnopqrstuvwxyz"), io::UnexpectedReadException);
+    EXPECT_THROW(reader.read_string("abcdefghijklmnopqrstuvwxyz"),
+                 io::UnexpectedReadException);
 
     reader.with_string_stream(input);
-    EXPECT_THROW(reader.read_string("_aeginrst", 20), io::UnexpectedReadException);
+    EXPECT_THROW(reader.read_string("_aeginrst", 20),
+                 io::UnexpectedReadException);
 
     reader.with_string_stream(input);
     EXPECT_THROW(reader.read_string([](std::size_t i, char c) {
         if (c == '_') return i == 1;
         return true;
-    }), io::UnexpectedReadException);
+    }),
+                 io::UnexpectedReadException);
 }
 
 TEST_F(ReaderTestNonStrict, ReadConstant) {
@@ -213,15 +216,19 @@ TEST_F(ReaderTestNonStrict, ReadAnyOf) {
     std::string input = "hello world";
 
     reader.with_string_stream(input);
-    EXPECT_EQ(reader.read_any_of({"Say", "hello", "to", "your", "friend"}), "hello");
-    EXPECT_EQ(reader.read_any_of({"The", "world", "was", "wide", "enough"}), "world");
+    EXPECT_EQ(reader.read_any_of({"Say", "hello", "to", "your", "friend"}),
+              "hello");
+    EXPECT_EQ(reader.read_any_of({"The", "world", "was", "wide", "enough"}),
+              "world");
     EXPECT_THROW(reader.read_any_of({"a"}), io::EOFException);
 
     reader.with_string_stream(input);
-    EXPECT_THROW(reader.read_any_of({"Say", "no", "to", "this"}), io::UnexpectedReadException);
+    EXPECT_THROW(reader.read_any_of({"Say", "no", "to", "this"}),
+                 io::UnexpectedReadException);
 
     reader.with_string_stream(input);
-    EXPECT_THROW(reader.read_any_of({"Alexander", "", "Hamilton"}), InvalidArgumentException);
+    EXPECT_THROW(reader.read_any_of({"Alexander", "", "Hamilton"}),
+                 InvalidArgumentException);
 }
 
 TEST_F(ReaderTestNonStrict, ReadNIntegers_WithoutSeparator) {
@@ -232,8 +239,10 @@ TEST_F(ReaderTestNonStrict, ReadNIntegers_WithoutSeparator) {
 
 TEST_F(ReaderTestNonStrict, ReadNIntegers_WithSeparator) {
     reader.with_string_stream("   1 2 -42 7  0");
-    EXPECT_EQ(reader.read_n_integers<int>(3, " "), std::vector<int>({1, 2, -42}));
-    EXPECT_THROW(reader.read_n_integers<int>(2, " "), io::UnexpectedReadException);
+    EXPECT_EQ(reader.read_n_integers<int>(3, " "),
+              std::vector<int>({1, 2, -42}));
+    EXPECT_THROW(reader.read_n_integers<int>(2, " "),
+                 io::UnexpectedReadException);
 }
 
 TEST_F(ReaderTestNonStrict, ReadNFloatingPoint_WithoutSeparator) {
@@ -259,7 +268,8 @@ TEST_F(ReaderTestNonStrict, ReadNFloatingPoint_WithSeparator) {
     EXPECT_FLOAT_EQ(v[1], 2);
     EXPECT_FLOAT_EQ(v[2], -42);
 
-    EXPECT_THROW(reader.read_n_floating_point<float>(2, " "), io::UnexpectedReadException);
+    EXPECT_THROW(reader.read_n_floating_point<float>(2, " "),
+                 io::UnexpectedReadException);
 }
 
 TEST(ReaderTestStrict, ReadIntegers) {
@@ -275,10 +285,12 @@ TEST(ReaderTestStrict, ReadIntegers) {
     EXPECT_EQ(reader_strict.read_integer<unsigned int>(), 2);
     reader_strict.skip_spaces();
     EXPECT_EQ(reader_strict.read_integer<long long>(), 0);
-    EXPECT_THROW(reader_strict.read_integer<long long>(), io::UnexpectedReadException);
+    EXPECT_THROW(reader_strict.read_integer<long long>(),
+                 io::UnexpectedReadException);
 
     reader_strict.with_string_stream(input);
     EXPECT_NO_THROW(reader_strict.read_n_integers<int>(2, " "));
     reader_strict.skip_non_numeric();
-    EXPECT_THROW(reader_strict.read_n_integers<long long>(3), io::UnexpectedReadException);
+    EXPECT_THROW(reader_strict.read_n_integers<long long>(3),
+                 io::UnexpectedReadException);
 }
