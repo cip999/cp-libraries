@@ -144,6 +144,9 @@ class Reader {
     T read_integer();
 
     template <class T>
+    T read_integer(T min_value, T max_value);
+
+    template <class T>
     T read_floating_point();
 
     template <class T>
@@ -151,6 +154,12 @@ class Reader {
 
     template <class T>
     std::vector<T> read_n_integers(std::size_t n, std::string sep);
+
+    template <class T>
+    std::vector<T> read_n_integers(std::size_t n, T min_value, T max_value);
+
+    template <class T>
+    std::vector<T> read_n_integers(std::size_t n, T min_value, T max_value, std::string sep);
 
     template <class T>
     std::vector<T> read_n_floating_point(std::size_t n);
@@ -352,6 +361,16 @@ T Reader::read_integer() {
 }
 
 template <class T>
+T Reader::read_integer(T min_value, T max_value) {
+    T n = read_integer<T>();
+    if (n < min_value || n > max_value) {
+        throw FailedValidationException::interval_constraint(min_value,
+                                                             max_value, "n");
+    }
+    return n;
+}
+
+template <class T>
 T Reader::read_floating_point_strict() {
     std::string x_string;
     char c;
@@ -433,6 +452,34 @@ std::vector<T> Reader::read_n_integers(std::size_t n, std::string sep) {
     }
     return read_n_numbers<T>(n, [this, &n, sep]() {
         T x = read_integer_strict<T>();
+        if (n > 0) {
+            read_constant(sep);
+        }
+        --n;
+        return x;
+    });
+}
+
+template <class T>
+std::vector<T> Reader::read_n_integers(std::size_t n, T min_value, T max_value) {
+    return read_n_numbers<T>(n, [this, min_value, max_value]() {
+        return read_integer<T>(min_value, max_value);
+    });
+}
+
+template <class T>
+std::vector<T> Reader::read_n_integers(std::size_t n, T min_value, T max_value, std::string sep) {
+    if (sep.empty()) {
+        throw InvalidArgumentException("Argument 'sep' must be non-empty");
+    }
+    if (!strict) {
+        skip_spaces();
+    }
+    return read_n_numbers<T>(n, [this, &n, min_value, max_value, sep]() {
+        T x = read_integer_strict<T>();
+        if (x < min_value || x > max_value) {
+            throw FailedValidationException::interval_constraint(min_value, max_value, "x");
+        }
         if (n > 0) {
             read_constant(sep);
         }

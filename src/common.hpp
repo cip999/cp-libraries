@@ -16,4 +16,19 @@ class InvalidArgumentException : public std::runtime_error,
         : std::runtime_error(msg) {}
 };
 
+class FailedValidationException : public std::logic_error,
+                                  public CplibException {
+   public:
+    explicit FailedValidationException(std::string const& msg)
+        : std::logic_error(msg) {}
+
+    template <class T>
+    static FailedValidationException const& interval_constraint(std::string var,
+                                                                T low, T high) {
+        return FailedValidationException("Expected " + std::to_string(low) +
+                                         " <= " + var +
+                                         " <= " + std::to_string(high));
+    }
+};
+
 }  // namespace cplib
