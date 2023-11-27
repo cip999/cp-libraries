@@ -80,7 +80,8 @@ class Reader {
     T read_floating_point_strict();
 
     template <class T>
-    std::vector<T> read_n_numbers(std::size_t n, std::function<T()> read_single);
+    std::vector<T> read_n_numbers(std::size_t n,
+                                  std::function<T()> read_single);
 
     std::string read_string_strict(
         std::function<bool(std::size_t, char)> const& check_char,
@@ -406,12 +407,12 @@ T Reader::read_floating_point() {
 
 template <class T>
 std::vector<T> Reader::read_n_numbers(std::size_t n,
-                                    std::function<T()> read_single) {
+                                      std::function<T()> read_single) {
     if (n == 0) {
         throw InvalidArgumentException("n must be strictly positive");
     }
     std::vector<T> v(n);
-    for (int i = 0; i < n; ++i) {
+    for (std::size_t i = 0; i < n; ++i) {
         v[i] = read_single();
     }
     return v;

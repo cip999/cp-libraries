@@ -261,3 +261,24 @@ TEST_F(ReaderTestNonStrict, ReadNFloatingPoint_WithSeparator) {
 
     EXPECT_THROW(reader.read_n_floating_point<float>(2, " "), io::UnexpectedReadException);
 }
+
+TEST(ReaderTestStrict, ReadIntegers) {
+    io::Reader reader_strict(true);
+
+    std::string input =
+        "1 2  \t 0 123000000000 -2147483648\n"
+        " abc-42\r\n";
+    reader_strict.with_string_stream(input);
+
+    EXPECT_EQ(reader_strict.read_integer<int>(), 1);
+    EXPECT_NO_THROW(reader_strict.must_be_space());
+    EXPECT_EQ(reader_strict.read_integer<unsigned int>(), 2);
+    reader_strict.skip_spaces();
+    EXPECT_EQ(reader_strict.read_integer<long long>(), 0);
+    EXPECT_THROW(reader_strict.read_integer<long long>(), io::UnexpectedReadException);
+
+    reader_strict.with_string_stream(input);
+    EXPECT_NO_THROW(reader_strict.read_n_integers<int>(2, " "));
+    reader_strict.skip_non_numeric();
+    EXPECT_THROW(reader_strict.read_n_integers<long long>(3), io::UnexpectedReadException);
+}
