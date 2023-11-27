@@ -79,6 +79,9 @@ class Reader {
     template <class T>
     T read_floating_point_strict();
 
+    template <class T>
+    std::vector<T> read_n_numbers(std::size_t n, std::function<T()> read_single);
+
     std::string read_string_strict(
         std::function<bool(std::size_t, char)> const& check_char,
         std::size_t min_length, std::size_t max_length);
@@ -141,6 +144,18 @@ class Reader {
 
     template <class T>
     T read_floating_point();
+
+    template <class T>
+    std::vector<T> read_n_integers(std::size_t n);
+
+    template <class T>
+    std::vector<T> read_n_integers(std::size_t n, std::string sep);
+
+    template <class T>
+    std::vector<T> read_n_floating_point(std::size_t n);
+
+    template <class T>
+    std::vector<T> read_n_floating_point(std::size_t n, std::string sep);
 
     std::string read_string(std::size_t exact_length);
     std::string read_string(std::size_t min_length, std::size_t max_length);
@@ -217,7 +232,7 @@ std::string Reader::read_constant(std::string const& token) {
         throw InvalidArgumentException(
             "Argument 'token' must not be the empty string");
     }
-    char *s = (char *) malloc((token.size() + 1) * sizeof(char));
+    char* s = (char*)malloc((token.size() + 1) * sizeof(char));
     source->read(s, token.size());
     if (source->eof()) {
         throw EOFException();
@@ -387,6 +402,65 @@ T Reader::read_floating_point() {
     static_assert(std::is_floating_point_v<T>, "Type must be floating point");
     if (!strict) skip_non_numeric();
     return read_floating_point_strict<T>();
+}
+
+template <class T>
+std::vector<T> Reader::read_n_numbers(std::size_t n,
+                                    std::function<T()> read_single) {
+    if (n == 0) {
+        throw InvalidArgumentException("n must be strictly positive");
+    }
+    std::vector<T> v(n);
+    for (int i = 0; i < n; ++i) {
+        v[i] = read_single();
+    }
+    return v;
+}
+
+template <class T>
+std::vector<T> Reader::read_n_integers(std::size_t n) {
+    return read_n_numbers<T>(n, [this]() { return read_integer<T>(); });
+}
+
+template <class T>
+std::vector<T> Reader::read_n_integers(std::size_t n, std::string sep) {
+    if (sep.empty()) {
+        throw InvalidArgumentException("Argument 'sep' must be non-empty");
+    }
+    if (!strict) {
+        skip_spaces();
+    }
+    return read_n_numbers<T>(n, [this, &n, sep]() {
+        T x = read_integer_strict<T>();
+        if (n > 0) {
+            read_constant(sep);
+        }
+        --n;
+        return x;
+    });
+}
+
+template <class T>
+std::vector<T> Reader::read_n_floating_point(std::size_t n) {
+    return read_n_numbers<T>(n, [this]() { return read_floating_point<T>(); });
+}
+
+template <class T>
+std::vector<T> Reader::read_n_floating_point(std::size_t n, std::string sep) {
+    if (sep.empty()) {
+        throw InvalidArgumentException("Argument 'sep' must be non-empty");
+    }
+    if (!strict) {
+        skip_spaces();
+    }
+    return read_n_numbers<T>(n, [this, &n, sep]() {
+        T x = read_floating_point_strict<T>();
+        if (n > 0) {
+            read_constant(sep);
+        }
+        --n;
+        return x;
+    });
 }
 
 std::string Reader::read_string_strict(

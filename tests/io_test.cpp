@@ -223,3 +223,41 @@ TEST_F(ReaderTestNonStrict, ReadAnyOf) {
     reader.with_string_stream(input);
     EXPECT_THROW(reader.read_any_of({"Alexander", "", "Hamilton"}), InvalidArgumentException);
 }
+
+TEST_F(ReaderTestNonStrict, ReadNIntegers_WithoutSeparator) {
+    reader.with_string_stream("   1 2  -42 7");
+    EXPECT_EQ(reader.read_n_integers<int>(3), std::vector<int>({1, 2, -42}));
+    EXPECT_THROW(reader.read_n_integers<int>(2), io::EOFException);
+}
+
+TEST_F(ReaderTestNonStrict, ReadNIntegers_WithSeparator) {
+    reader.with_string_stream("   1 2 -42 7  0");
+    EXPECT_EQ(reader.read_n_integers<int>(3, " "), std::vector<int>({1, 2, -42}));
+    EXPECT_THROW(reader.read_n_integers<int>(2, " "), io::UnexpectedReadException);
+}
+
+TEST_F(ReaderTestNonStrict, ReadNFloatingPoint_WithoutSeparator) {
+    reader.with_string_stream("   1.23 2  -42.000 7.7");
+
+    std::vector<float> v;
+    EXPECT_NO_THROW(v = reader.read_n_floating_point<float>(3));
+    EXPECT_EQ(v.size(), 3);
+    EXPECT_FLOAT_EQ(v[0], 1.23);
+    EXPECT_FLOAT_EQ(v[1], 2);
+    EXPECT_FLOAT_EQ(v[2], -42);
+
+    EXPECT_THROW(reader.read_n_floating_point<float>(2), io::EOFException);
+}
+
+TEST_F(ReaderTestNonStrict, ReadNFloatingPoint_WithSeparator) {
+    reader.with_string_stream("   1.23 2 -42.000 7.7   0");
+
+    std::vector<float> v;
+    EXPECT_NO_THROW(v = reader.read_n_floating_point<float>(3, " "));
+    EXPECT_EQ(v.size(), 3);
+    EXPECT_FLOAT_EQ(v[0], 1.23);
+    EXPECT_FLOAT_EQ(v[1], 2);
+    EXPECT_FLOAT_EQ(v[2], -42);
+
+    EXPECT_THROW(reader.read_n_floating_point<float>(2, " "), io::UnexpectedReadException);
+}
