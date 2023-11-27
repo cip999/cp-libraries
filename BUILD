@@ -1,6 +1,12 @@
 cc_library(
+  name = "common",
+  srcs = ["src/common.hpp"],
+)
+
+cc_library(
   name = "io",
   srcs = ["src/io.hpp"],
+  deps = [":common"],
 )
 
 cc_test(

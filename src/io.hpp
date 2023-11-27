@@ -5,14 +5,17 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <numeric>
 #include <sstream>
 #include <string>
+
+#include "common.hpp"
 
 namespace cplib {
 
 namespace io {
 
-class IOException : public std::ios_base::failure {
+class IOException : public std::ios_base::failure, public CplibException {
    public:
     explicit IOException(std::string const& msg)
         : std::ios_base::failure(msg) {}
@@ -130,6 +133,9 @@ class Reader {
 
     char read_char();
 
+    std::string read_constant(std::string const& token);
+    std::string read_any_of(std::vector<std::string> const& tokens);
+
     template <class T>
     T read_integer();
 
@@ -204,6 +210,55 @@ char Reader::read_char() {
         throw EOFException();
     }
     return c;
+}
+
+std::string Reader::read_constant(std::string const& token) {
+    if (token.empty()) {
+        throw InvalidArgumentException(
+            "Argument 'token' must not be the empty string");
+    }
+    char *s = (char *) malloc((token.size() + 1) * sizeof(char));
+    source->read(s, token.size());
+    if (source->eof()) {
+        throw EOFException();
+    }
+    s[token.size()] = '\0';
+    if (std::string(s) != token) {
+        throw UnexpectedReadException("'" + token + "'");
+    }
+    return std::string(s);
+}
+
+std::string Reader::read_any_of(std::vector<std::string> const& tokens) {
+    if (tokens.empty()) {
+        throw InvalidArgumentException("Argument 'tokens' must not be empty");
+    }
+    std::size_t min_length =
+        std::accumulate(tokens.begin(), tokens.end(), std::string::npos,
+                        [](std::size_t a, std::string const& b) {
+                            return std::min(a, b.size());
+                        });
+    std::size_t max_length =
+        std::accumulate(tokens.begin(), tokens.end(), 0,
+                        [](std::size_t a, std::string const& b) {
+                            return std::max(a, b.size());
+                        });
+    if (min_length == 0) {
+        throw InvalidArgumentException(
+            "Elements of 'tokens' must not be the empty string");
+    }
+    std::string s = read_string(min_length, max_length);
+    if (std::find(tokens.begin(), tokens.end(), s) == tokens.end()) {
+        std::string concat =
+            static_cast<std::string>(
+                std::accumulate(tokens.begin(), tokens.end(), std::string("'"),
+                                [](std::string const& a, std::string const& b) {
+                                    return a + "', '" + b;
+                                })) +
+            "'";
+        throw UnexpectedReadException("one of " + concat);
+    }
+    return s;
 }
 
 template <class T>
@@ -360,6 +415,9 @@ std::string Reader::read_string_strict(
             s.push_back(c);
         }
     } catch (EOFException const&) {
+        if (s.empty()) {
+            throw EOFException();
+        }
     }
     if (s.size() < min_length) {
         throw UnexpectedReadException("string of length >= " +
@@ -398,11 +456,7 @@ std::string Reader::read_string(
 
 template <class T>
 Reader& operator>>(Reader& r, T& v) {
-    if (std::is_integral_v<T>) {
-        v = r.read_integer<T>();
-    } else {
-        throw std::runtime_error("Unimplemented");
-    }
+    throw std::runtime_error("Unimplemented");
     return r;
 }
 

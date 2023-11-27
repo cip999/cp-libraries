@@ -191,3 +191,35 @@ TEST_F(ReaderTestNonStrict, ReadString_WhenIncorrect_ShouldThrow) {
         return true;
     }), io::UnexpectedReadException);
 }
+
+TEST_F(ReaderTestNonStrict, ReadConstant) {
+    std::string input = "hello world";
+
+    reader.with_string_stream(input);
+    EXPECT_EQ(reader.read_constant("hello"), "hello");
+    EXPECT_THROW(reader.read_constant("world"), io::UnexpectedReadException);
+
+    reader.with_string_stream(input);
+    EXPECT_EQ(reader.read_constant("hello world"), "hello world");
+
+    reader.with_string_stream(input);
+    EXPECT_THROW(reader.read_constant(""), InvalidArgumentException);
+
+    reader.with_string_stream(input);
+    EXPECT_THROW(reader.read_constant("hello world!"), io::EOFException);
+}
+
+TEST_F(ReaderTestNonStrict, ReadAnyOf) {
+    std::string input = "hello world";
+
+    reader.with_string_stream(input);
+    EXPECT_EQ(reader.read_any_of({"Say", "hello", "to", "your", "friend"}), "hello");
+    EXPECT_EQ(reader.read_any_of({"The", "world", "was", "wide", "enough"}), "world");
+    EXPECT_THROW(reader.read_any_of({"a"}), io::EOFException);
+
+    reader.with_string_stream(input);
+    EXPECT_THROW(reader.read_any_of({"Say", "no", "to", "this"}), io::UnexpectedReadException);
+
+    reader.with_string_stream(input);
+    EXPECT_THROW(reader.read_any_of({"Alexander", "", "Hamilton"}), InvalidArgumentException);
+}
