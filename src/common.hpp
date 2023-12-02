@@ -23,8 +23,8 @@ class FailedValidationException : public std::logic_error,
         : std::logic_error(msg) {}
 
     template <class T>
-    static FailedValidationException const& interval_constraint(std::string var,
-                                                                T low, T high) {
+    static FailedValidationException interval_constraint(std::string var, T low,
+                                                         T high) {
         return FailedValidationException("Expected " + std::to_string(low) +
                                          " <= " + var +
                                          " <= " + std::to_string(high));
