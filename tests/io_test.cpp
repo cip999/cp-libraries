@@ -3,9 +3,9 @@
 #include <gtest/gtest.h>
 
 #include <iostream>
+#include <set>
 #include <string>
 #include <vector>
-#include <set>
 
 using namespace cplib;
 
@@ -285,13 +285,13 @@ TEST_F(ReaderTestNonStrict, ReadGeneric) {
     EXPECT_EQ(reader.read<std::string>(), "hello");
     EXPECT_EQ(reader.read<int>(4), std::vector<int>({3, 5, -6, 0}));
     EXPECT_EQ(reader.read<std::set<std::string>>(7), std::set<std::string>({
-        "doesn't",
-        "kill",
-        "makes",
-        "stronger",
-        "what",
-        "you",
-    }));
+                                                         "doesn't",
+                                                         "kill",
+                                                         "makes",
+                                                         "stronger",
+                                                         "what",
+                                                         "you",
+                                                     }));
 
     reader.with_string_stream("1 2 3");
     EXPECT_THROW(reader.read<std::set<int>>(0), InvalidArgumentException);
@@ -316,12 +316,106 @@ TEST_F(ReaderTestStrict, ReadIntegers) {
     EXPECT_EQ(reader.read_integer<unsigned int>(), 2);
     reader.skip_spaces();
     EXPECT_EQ(reader.read_integer<long long>(), 0);
-    EXPECT_THROW(reader.read_integer<long long>(),
-                 io::UnexpectedReadException);
+    EXPECT_THROW(reader.read_integer<long long>(), io::UnexpectedReadException);
 
     reader.with_string_stream(input);
     EXPECT_NO_THROW(reader.read_n_integers<int>(2, " "));
     reader.skip_non_numeric();
     EXPECT_THROW(reader.read_n_integers<long long>(3),
                  io::UnexpectedReadException);
+}
+
+class WriterTest : public testing::Test {
+   protected:
+    std::ostringstream* ss;
+    io::Writer writer;
+
+    void SetUp() override {
+        ss = new std::ostringstream();
+        writer.with_dest(*ss);
+    }
+
+    void TearDown() override { writer.~Writer(); }
+};
+
+TEST_F(WriterTest, WriteScalars) {
+    writer.write_char('o');
+    writer.write_char('i');
+    writer.write_char('i');
+    writer.write_newline();
+
+    writer.write_integer(1);
+    writer.write_space();
+    writer.write_integer(-239);
+    writer.write_newline();
+
+    writer.write_floating_point<float>(1.3);
+    writer.write_space();
+    writer.write_floating_point<double>(-7.2023, 6);
+    writer.write_space();
+    writer.write_floating_point(0.1298, 0);
+    writer.write_newline();
+
+    writer.write_string("Hello world!");
+    writer.write_space();
+    writer.write_string(std::string("Goodbye"));
+    writer.write_newline();
+
+    std::string expected =
+        "oii\n"
+        "1 -239\n"
+        "1.3 -7.202300 0\n"
+        "Hello world! Goodbye\n";
+
+    EXPECT_EQ(ss->str(), expected);
+}
+
+TEST_F(WriterTest, WriteIterables) {
+    std::vector<std::string> string_iter({"apples", "meat", "fish"});
+    std::multiset<int> int_iter({10, -4, 0, 0, 12});
+    std::vector<std::vector<int>> int_matrix({
+        {1, 2, 3, 4},
+        {5, 6, 7, 8},
+        {9, 10, 11, 12},
+    });
+
+    writer.write_iter(string_iter, ", ");
+    writer.write_newline();
+    writer.write_iter(int_iter.begin(), int_iter.end());
+    writer.write_newline();
+    writer.write_newline();
+    writer.write_matrix(int_matrix);
+    writer.write_newline();
+
+    std::string expected =
+        "apples, meat, fish\n"
+        "-4 0 0 10 12\n\n"
+        "1 2 3 4\n"
+        "5 6 7 8\n"
+        "9 10 11 12\n";
+
+    EXPECT_EQ(ss->str(), expected);
+}
+
+TEST_F(WriterTest, StreamOperator) {
+    std::vector<std::string> string_iter({"apples", "meat", "fish"});
+    std::multiset<int> int_iter({10, -4, 0, 0, 12});
+    std::vector<std::vector<int>> int_matrix({
+        {1, 2, 3, 4},
+        {5, 6, 7, 8},
+        {9, 10, 11, 12},
+    });
+
+    writer << string_iter << "\n"
+           << int_iter << "\n\n"
+           << int_matrix << "\n";
+
+    std::string expected =
+        "apples meat fish\n"
+        "-4 0 0 10 12\n\n"
+        "1 2 3 4\n"
+        "5 6 7 8\n"
+        "9 10 11 12\n";
+
+    EXPECT_EQ(ss->str(), expected);
 }

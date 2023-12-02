@@ -208,9 +208,10 @@ class Reader {
               std::enable_if_t<std::is_same_v<T, std::string>, bool> = true>
     std::vector<std::string> read(std::size_t n);
 
-    template <class V,
-              class T = std::decay_t<decltype(*std::declval<V>().begin())>,
-              std::enable_if_t<!std::is_same_v<V, std::string>, bool> = true>
+    template <
+        class V, class T = std::decay_t<decltype(*std::declval<V>().begin())>,
+        std::enable_if_t<!std::is_same_v<std::decay_t<V>, std::string>, bool> =
+            true>
     V read(std::size_t n);
 
     template <class T>
@@ -650,7 +651,7 @@ std::vector<std::string> Reader::read(std::size_t n) {
 }
 
 template <class V, class T,
-          std::enable_if_t<!std::is_same_v<V, std::string>, bool>>
+          std::enable_if_t<!std::is_same_v<std::decay_t<V>, std::string>, bool>>
 V Reader::read(std::size_t n) {
     auto v = read<std::decay_t<T>>(n);
     return V(v.begin(), v.end());
@@ -666,6 +667,173 @@ template <class T>
 Reader& operator>>(Reader& r, std::vector<T>& v) {
     v = r.read<T>(v.size());
     return r;
+}
+
+class Writer {
+   private:
+    std::unique_ptr<std::ostream> dest;
+
+    char decimal_separator = '.';
+
+   public:
+    Writer() = default;
+    Writer(const char* file_name) : dest(new std::ofstream(file_name)) {
+        if (dest->fail()) {
+            throw OpenFailureException(std::string(file_name));
+        }
+    }
+    Writer(std::ostream& dest) : dest(&dest) {}
+
+    ~Writer() { dest.get_deleter()(dest.release()); }
+
+    Writer& with_dest(std::ostream& dest) {
+        this->dest.get_deleter()(this->dest.release());
+        this->dest = std::unique_ptr<std::ostream>(&dest);
+        return *this;
+    }
+
+    Writer& with_comma_as_decimal_separator() {
+        decimal_separator = ',';
+        return *this;
+    }
+    Writer& with_dot_as_decimal_separator() {
+        decimal_separator = '.';
+        return *this;
+    }
+
+    void write_space();
+    void write_newline(bool with_cr);
+
+    void write_char(char c);
+
+    void write_string(const char* s, std::size_t n = 0);
+    void write_string(std::string const& s);
+
+    template <class T>
+    void write_integer(T x);
+
+    template <class T>
+    void write_floating_point(T x, int fixed_decimals = -1);
+
+    template <class IT>
+    void write_iter(IT const& begin, IT const& end,
+                    std::string const& separator = " ");
+
+    template <class V>
+    void write_iter(V const& v, std::string const& separator = " ");
+
+    template <class M>
+    void write_matrix(M const& m);
+
+    template <class T, class = decltype(std::declval<std::ostream>()
+                                        << std::declval<T>())>
+    void write(T const& x);
+
+    template <class V,
+              class = decltype(std::declval<std::ostream>()
+                               << *std::declval<V>().begin()),
+              std::enable_if_t<!std::is_same_v<std::decay_t<V>, std::string>,
+                               bool> = true>
+    void write(V const& v);
+
+    template <
+        class M,
+        class = decltype(std::declval<std::ostream>()
+                         << *std::declval<M>().begin()->begin()),
+        std::enable_if_t<
+            !std::is_same_v<std::decay_t<decltype(*std::declval<M>().begin())>,
+                            std::string>,
+            bool> = true>
+    void write(M const& m);
+
+    template <class T>
+    friend Writer& operator<<(Writer& w, T const& x);
+};
+
+void Writer::write_space() { dest->put(' '); }
+
+void Writer::write_newline(bool with_cr = false) {
+    if (with_cr) {
+        dest->put('\r');
+    }
+    dest->put('\n');
+}
+
+void Writer::write_char(char c) { dest->put(c); }
+
+void Writer::write_string(const char* s, std::size_t n) {
+    if (n == 0) {
+        n = strlen(s);
+    }
+    dest->write(s, n);
+}
+
+void Writer::write_string(std::string const& s) { *dest << s; }
+
+template <class T>
+void Writer::write_integer(T x) {
+    static_assert(std::is_integral_v<T>);
+    *dest << x;
+}
+
+template <class T>
+void Writer::write_floating_point(T x, int fixed_decimals) {
+    static_assert(std::is_floating_point_v<T>);
+    std::ostringstream ss;
+    if (fixed_decimals >= 0) {
+        ss << std::fixed;
+        ss.precision(fixed_decimals);
+    }
+    ss << x;
+    write_string(ss.str());
+}
+
+template <class IT>
+void Writer::write_iter(IT const& begin, IT const& end,
+                        std::string const& separator) {
+    for (IT it = begin; it != end; it = std::next(it)) {
+        if (it != begin) write_string(separator);
+        write(*it);
+    }
+}
+
+template <class V>
+void Writer::write_iter(V const& v, std::string const& separator) {
+    write_iter(v.begin(), v.end(), separator);
+}
+
+template <class M>
+void Writer::write_matrix(M const& m) {
+    for (auto it = m.begin(); it != m.end(); it = next(it)) {
+        if (it != m.begin()) write_string("\n");
+        write_iter(*it);
+    }
+}
+
+template <class T, class>
+void Writer::write(T const& x) {
+    *dest << x;
+}
+
+template <class V, class,
+          std::enable_if_t<!std::is_same_v<std::decay_t<V>, std::string>, bool>>
+void Writer::write(V const& v) {
+    write_iter(v.begin(), v.end());
+}
+
+template <class M, class,
+          std::enable_if_t<!std::is_same_v<
+                             std::decay_t<decltype(*std::declval<M>().begin())>,
+                             std::string>,
+                         bool>>
+void Writer::write(M const& m) {
+    write_matrix(m);
+}
+
+template <class T>
+Writer& operator<<(Writer& w, T const& x) {
+    w.write(x);
+    return w;
 }
 
 }  // namespace io
