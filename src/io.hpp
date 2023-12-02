@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstring>
 #include <exception>
 #include <fstream>
 #include <functional>
@@ -25,7 +26,7 @@ class OpenFailureException : public IOException {
    public:
     explicit OpenFailureException(std::string const& file_name)
         : IOException("Couldn't open " + file_name) {}
-    explicit OpenFailureException(char* const file_name)
+    explicit OpenFailureException(const char* file_name)
         : OpenFailureException(std::string(file_name)) {}
 };
 
@@ -80,17 +81,17 @@ class Reader {
     T read_floating_point_strict();
 
     template <class T>
-    std::vector<T> read_n_numbers(std::size_t n,
-                                  std::function<T()> read_single);
+    std::vector<T> read_n(std::size_t n, std::function<T()> read_single,
+                          std::string const& sep = "");
 
     std::string read_string_strict(
         std::function<bool(std::size_t, char)> const& check_char,
-        std::size_t min_length, std::size_t max_length);
+        std::size_t min_length = 0, std::size_t max_length = std::string::npos);
 
    public:
     Reader() = default;
     Reader(bool strict) : strict(strict) {}
-    Reader(char* const file_name) : source(new std::ifstream(file_name)) {
+    Reader(const char* file_name) : source(new std::ifstream(file_name)) {
         if (source->fail()) {
             throw OpenFailureException(std::string(file_name));
         }
@@ -107,6 +108,15 @@ class Reader {
 
     Reader& with_string_stream(std::string const& s) {
         source.reset(new std::istringstream(s));
+        return *this;
+    }
+
+    Reader& make_strict() {
+        strict = true;
+        return *this;
+    }
+    Reader& make_non_strict() {
+        strict = false;
         return *this;
     }
 
@@ -150,34 +160,64 @@ class Reader {
     T read_floating_point();
 
     template <class T>
-    std::vector<T> read_n_integers(std::size_t n);
-
-    template <class T>
-    std::vector<T> read_n_integers(std::size_t n, std::string sep);
-
-    template <class T>
-    std::vector<T> read_n_integers(std::size_t n, T min_value, T max_value);
+    std::vector<T> read_n_integers(std::size_t n, std::string const& sep = "");
 
     template <class T>
     std::vector<T> read_n_integers(std::size_t n, T min_value, T max_value,
-                                   std::string sep);
+                                   std::string const& sep = "");
 
     template <class T>
-    std::vector<T> read_n_floating_point(std::size_t n);
+    std::vector<T> read_n_floating_point(std::size_t n,
+                                         std::string const& sep = "");
 
-    template <class T>
-    std::vector<T> read_n_floating_point(std::size_t n, std::string sep);
-
-    std::string read_string(std::size_t exact_length);
+    std::string read_string(std::size_t exact_length = 0);
     std::string read_string(std::size_t min_length, std::size_t max_length);
     std::string read_string(std::string const& allowed_chars,
-                            std::size_t min_length, std::size_t max_length);
+                            std::size_t min_length = 0,
+                            std::size_t max_length = std::string::npos);
     std::string read_string(
         std::function<bool(std::size_t, char)> const& check_char,
-        std::size_t min_length, std::size_t max_length);
+        std::size_t min_length = 0, std::size_t max_length = std::string::npos);
+
+    std::vector<std::string> read_n_strings(std::size_t n,
+                                            std::size_t exact_length = 0,
+                                            std::string const& sep = "");
+
+    template <class T, std::enable_if_t<std::is_same_v<T, char>, bool> = true>
+    char read();
+
+    template <class T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+    T read();
+
+    template <class T,
+              std::enable_if_t<std::is_floating_point_v<T>, bool> = true>
+    T read();
+
+    template <class T,
+              std::enable_if_t<std::is_same_v<T, std::string>, bool> = true>
+    std::string read();
+
+    template <class T, std::enable_if_t<std::is_integral_v<T>, bool> = true>
+    std::vector<T> read(std::size_t n);
+
+    template <class T,
+              std::enable_if_t<std::is_floating_point_v<T>, bool> = true>
+    std::vector<T> read(std::size_t n);
+
+    template <class T,
+              std::enable_if_t<std::is_same_v<T, std::string>, bool> = true>
+    std::vector<std::string> read(std::size_t n);
+
+    template <class V,
+              class T = std::decay_t<decltype(*std::declval<V>().begin())>,
+              std::enable_if_t<!std::is_same_v<V, std::string>, bool> = true>
+    V read(std::size_t n);
 
     template <class T>
     friend Reader& operator>>(Reader& r, T& v);
+
+    template <class T>
+    friend Reader& operator>>(Reader& r, std::vector<T>& v);
 };
 
 void Reader::must_be_space() {
@@ -426,98 +466,65 @@ T Reader::read_floating_point() {
 }
 
 template <class T>
-std::vector<T> Reader::read_n_numbers(std::size_t n,
-                                      std::function<T()> read_single) {
+std::vector<T> Reader::read_n(std::size_t n, std::function<T()> read_single,
+                              std::string const& sep) {
     if (n == 0) {
         throw InvalidArgumentException("n must be strictly positive");
+    }
+    if (!strict) {
+        skip_spaces();
     }
     std::vector<T> v(n);
     for (std::size_t i = 0; i < n; ++i) {
         v[i] = read_single();
+        if (sep.size() > 0 && i + 1 < n) {
+            read_constant(sep);
+        }
     }
     return v;
 }
 
 template <class T>
-std::vector<T> Reader::read_n_integers(std::size_t n) {
-    return read_n_numbers<T>(n, [this]() { return read_integer<T>(); });
-}
-
-template <class T>
-std::vector<T> Reader::read_n_integers(std::size_t n, std::string sep) {
-    if (sep.empty()) {
-        throw InvalidArgumentException("Argument 'sep' must be non-empty");
-    }
-    if (!strict) {
-        skip_spaces();
-    }
-    return read_n_numbers<T>(n, [this, &n, sep]() {
-        T x = read_integer_strict<T>();
-        if (n > 0) {
-            read_constant(sep);
-        }
-        --n;
-        return x;
-    });
-}
-
-template <class T>
-std::vector<T> Reader::read_n_integers(std::size_t n, T min_value,
-                                       T max_value) {
-    return read_n_numbers<T>(n, [this, min_value, max_value]() {
-        return read_integer<T>(min_value, max_value);
-    });
+std::vector<T> Reader::read_n_integers(std::size_t n, std::string const& sep) {
+    return sep.size() == 0
+               ? read_n<T>(
+                     n, [this]() { return read_integer<T>(); }, sep)
+               : read_n<T>(
+                     n, [this]() { return read_integer_strict<T>(); }, sep);
 }
 
 template <class T>
 std::vector<T> Reader::read_n_integers(std::size_t n, T min_value, T max_value,
-                                       std::string sep) {
-    if (sep.empty()) {
-        throw InvalidArgumentException("Argument 'sep' must be non-empty");
-    }
-    if (!strict) {
-        skip_spaces();
-    }
-    return read_n_numbers<T>(n, [this, &n, min_value, max_value, sep]() {
-        T x = read_integer_strict<T>();
-        if (x < min_value || x > max_value) {
-            throw FailedValidationException::interval_constraint("x", min_value,
-                                                                 max_value);
-        }
-        if (n > 0) {
-            read_constant(sep);
-        }
-        --n;
-        return x;
-    });
+                                       std::string const& sep) {
+    return sep.size() == 0
+               ? read_n<T>(
+                     n,
+                     [this, min_value, max_value]() {
+                         return read_integer<T>(min_value, max_value);
+                     },
+                     sep)
+               : read_n<T>(
+                     n,
+                     [this, min_value, max_value]() {
+                         return read_integer_strict<T>(min_value, max_value);
+                     },
+                     sep);
 }
 
 template <class T>
-std::vector<T> Reader::read_n_floating_point(std::size_t n) {
-    return read_n_numbers<T>(n, [this]() { return read_floating_point<T>(); });
-}
-
-template <class T>
-std::vector<T> Reader::read_n_floating_point(std::size_t n, std::string sep) {
-    if (sep.empty()) {
-        throw InvalidArgumentException("Argument 'sep' must be non-empty");
-    }
-    if (!strict) {
-        skip_spaces();
-    }
-    return read_n_numbers<T>(n, [this, &n, sep]() {
-        T x = read_floating_point_strict<T>();
-        if (n > 0) {
-            read_constant(sep);
-        }
-        --n;
-        return x;
-    });
+std::vector<T> Reader::read_n_floating_point(std::size_t n,
+                                             std::string const& sep) {
+    return sep.size() == 0
+               ? read_n<T>(
+                     n, [this]() { return read_floating_point<T>(); }, sep)
+               : read_n<T>(
+                     n, [this]() { return read_floating_point_strict<T>(); },
+                     sep);
 }
 
 std::string Reader::read_string_strict(
     std::function<bool(std::size_t, char)> const& check_char,
-    std::size_t min_length = 0, std::size_t max_length = std::string::npos) {
+    std::size_t min_length, std::size_t max_length) {
     std::string s;
     s.reserve(min_length);
     char c;
@@ -554,7 +561,7 @@ std::string Reader::read_string_strict(
     return s;
 }
 
-std::string Reader::read_string(std::size_t exact_length = 0) {
+std::string Reader::read_string(std::size_t exact_length) {
     return exact_length > 0 ? read_string(exact_length, exact_length)
                             : read_string(0, std::string::npos);
 }
@@ -566,8 +573,8 @@ std::string Reader::read_string(std::size_t min_length,
 }
 
 std::string Reader::read_string(std::string const& allowed_chars,
-                                std::size_t min_length = 0,
-                                std::size_t max_length = std::string::npos) {
+                                std::size_t min_length,
+                                std::size_t max_length) {
     return read_string(
         [&allowed_chars](std::size_t i, char c) {
             return allowed_chars.find(c) != std::string::npos;
@@ -577,14 +584,87 @@ std::string Reader::read_string(std::string const& allowed_chars,
 
 std::string Reader::read_string(
     std::function<bool(std::size_t, char)> const& check_char,
-    std::size_t min_length = 0, std::size_t max_length = std::string::npos) {
+    std::size_t min_length, std::size_t max_length) {
     if (!strict) skip_spaces();
     return read_string_strict(check_char, min_length, max_length);
 }
 
+std::vector<std::string> Reader::read_n_strings(std::size_t n,
+                                                std::size_t exact_length,
+                                                std::string const& sep) {
+    return sep.size() == 0
+               ? read_n<std::string>(
+                     n,
+                     [this, exact_length]() {
+                         return read_string(exact_length);
+                     },
+                     sep)
+               : read_n<std::string>(
+                     n,
+                     [this, exact_length]() {
+                         auto check_char = [](std::size_t, char) {
+                             return true;
+                         };
+                         if (exact_length == 0) {
+                             return read_string_strict(check_char);
+                         }
+                         return read_string_strict(check_char, exact_length,
+                                                   exact_length);
+                     },
+                     sep);
+}
+
+template <class T, std::enable_if_t<std::is_same_v<T, char>, bool>>
+char Reader::read() {
+    return read_char();
+}
+
+template <class T, std::enable_if_t<std::is_integral_v<T>, bool>>
+T Reader::read() {
+    return read_integer<T>();
+}
+
+template <class T, std::enable_if_t<std::is_floating_point_v<T>, bool>>
+T Reader::read() {
+    return read_floating_point<T>();
+}
+
+template <class T, std::enable_if_t<std::is_same_v<T, std::string>, bool>>
+std::string Reader::read() {
+    return read_string();
+}
+
+template <class T, std::enable_if_t<std::is_integral_v<T>, bool>>
+std::vector<T> Reader::read(std::size_t n) {
+    return read_n_integers<T>(n);
+}
+
+template <class T, std::enable_if_t<std::is_floating_point_v<T>, bool>>
+std::vector<T> Reader::read(std::size_t n) {
+    return read_n_floating_point<T>(n);
+}
+
+template <class T, std::enable_if_t<std::is_same_v<T, std::string>, bool>>
+std::vector<std::string> Reader::read(std::size_t n) {
+    return read_n_strings(n);
+}
+
+template <class V, class T,
+          std::enable_if_t<!std::is_same_v<V, std::string>, bool>>
+V Reader::read(std::size_t n) {
+    auto v = read<std::decay_t<T>>(n);
+    return V(v.begin(), v.end());
+}
+
 template <class T>
-Reader& operator>>(Reader& r, T& v) {
-    throw std::runtime_error("Unimplemented");
+Reader& operator>>(Reader& r, T& x) {
+    x = r.read<T>();
+    return r;
+}
+
+template <class T>
+Reader& operator>>(Reader& r, std::vector<T>& v) {
+    v = r.read<T>(v.size());
     return r;
 }
 

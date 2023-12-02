@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <set>
 
 using namespace cplib;
 
@@ -174,25 +175,25 @@ TEST_F(ReaderTestNonStrict, ReadString_WhenIncorrect_ShouldThrow) {
     std::string input = "a_test_string";
 
     reader.with_string_stream(input);
-    EXPECT_THROW(reader.read_string(10), io::UnexpectedReadException);
+    EXPECT_THROW(reader.read_string(10), FailedValidationException);
 
     reader.with_string_stream(input);
-    EXPECT_THROW(reader.read_string(15, 20), io::UnexpectedReadException);
+    EXPECT_THROW(reader.read_string(15, 20), FailedValidationException);
 
     reader.with_string_stream(input);
     EXPECT_THROW(reader.read_string("abcdefghijklmnopqrstuvwxyz"),
-                 io::UnexpectedReadException);
+                 FailedValidationException);
 
     reader.with_string_stream(input);
     EXPECT_THROW(reader.read_string("_aeginrst", 20),
-                 io::UnexpectedReadException);
+                 FailedValidationException);
 
     reader.with_string_stream(input);
     EXPECT_THROW(reader.read_string([](std::size_t i, char c) {
         if (c == '_') return i == 1;
         return true;
     }),
-                 io::UnexpectedReadException);
+                 FailedValidationException);
 }
 
 TEST_F(ReaderTestNonStrict, ReadConstant) {
@@ -224,7 +225,7 @@ TEST_F(ReaderTestNonStrict, ReadAnyOf) {
 
     reader.with_string_stream(input);
     EXPECT_THROW(reader.read_any_of({"Say", "no", "to", "this"}),
-                 io::UnexpectedReadException);
+                 FailedValidationException);
 
     reader.with_string_stream(input);
     EXPECT_THROW(reader.read_any_of({"Alexander", "", "Hamilton"}),
@@ -272,25 +273,55 @@ TEST_F(ReaderTestNonStrict, ReadNFloatingPoint_WithSeparator) {
                  io::UnexpectedReadException);
 }
 
-TEST(ReaderTestStrict, ReadIntegers) {
-    io::Reader reader_strict(true);
+TEST_F(ReaderTestNonStrict, ReadGeneric) {
+    std::string input =
+        "1 -42.0 hello\n"
+        " 3, 5, -6, 0\n"
+        "what doesn't kill you makes you stronger\n";
+    reader.with_string_stream(input);
 
+    EXPECT_EQ(reader.read<unsigned int>(), 1);
+    EXPECT_DOUBLE_EQ(reader.read<double>(), -42);
+    EXPECT_EQ(reader.read<std::string>(), "hello");
+    EXPECT_EQ(reader.read<int>(4), std::vector<int>({3, 5, -6, 0}));
+    EXPECT_EQ(reader.read<std::set<std::string>>(7), std::set<std::string>({
+        "doesn't",
+        "kill",
+        "makes",
+        "stronger",
+        "what",
+        "you",
+    }));
+
+    reader.with_string_stream("1 2 3");
+    EXPECT_THROW(reader.read<std::set<int>>(0), InvalidArgumentException);
+}
+
+class ReaderTestStrict : public testing::Test {
+   protected:
+    io::Reader reader;
+
+    void SetUp() override { reader.make_strict(); }
+    void TearDown() override { reader.~Reader(); }
+};
+
+TEST_F(ReaderTestStrict, ReadIntegers) {
     std::string input =
         "1 2  \t 0 123000000000 -2147483648\n"
         " abc-42\r\n";
-    reader_strict.with_string_stream(input);
+    reader.with_string_stream(input);
 
-    EXPECT_EQ(reader_strict.read_integer<int>(), 1);
-    EXPECT_NO_THROW(reader_strict.must_be_space());
-    EXPECT_EQ(reader_strict.read_integer<unsigned int>(), 2);
-    reader_strict.skip_spaces();
-    EXPECT_EQ(reader_strict.read_integer<long long>(), 0);
-    EXPECT_THROW(reader_strict.read_integer<long long>(),
+    EXPECT_EQ(reader.read_integer<int>(), 1);
+    EXPECT_NO_THROW(reader.must_be_space());
+    EXPECT_EQ(reader.read_integer<unsigned int>(), 2);
+    reader.skip_spaces();
+    EXPECT_EQ(reader.read_integer<long long>(), 0);
+    EXPECT_THROW(reader.read_integer<long long>(),
                  io::UnexpectedReadException);
 
-    reader_strict.with_string_stream(input);
-    EXPECT_NO_THROW(reader_strict.read_n_integers<int>(2, " "));
-    reader_strict.skip_non_numeric();
-    EXPECT_THROW(reader_strict.read_n_integers<long long>(3),
+    reader.with_string_stream(input);
+    EXPECT_NO_THROW(reader.read_n_integers<int>(2, " "));
+    reader.skip_non_numeric();
+    EXPECT_THROW(reader.read_n_integers<long long>(3),
                  io::UnexpectedReadException);
 }
