@@ -176,8 +176,9 @@ class Reader {
     std::string read_string(std::size_t exact_length = 0);
     std::string read_string(std::size_t min_length, std::size_t max_length);
     std::string read_string(std::string const& allowed_chars,
-                            std::size_t min_length = 0,
-                            std::size_t max_length = std::string::npos);
+                            std::size_t exact_length = 0);
+    std::string read_string(std::string const& allowed_chars,
+                            std::size_t min_length, std::size_t max_length);
     std::string read_string(
         std::function<bool(std::size_t, char)> const& check_char,
         std::size_t min_length = 0, std::size_t max_length = std::string::npos);
@@ -553,7 +554,7 @@ std::string Reader::read_string_strict(
             }
             if (!check_char(i, c)) {
                 throw FailedValidationException(
-                    "Invalid character '" + std::to_string(c) +
+                    "Invalid character '" + to_string(c) +
                     "' at position " + std::to_string(i));
             }
             s.push_back(c);
@@ -579,6 +580,13 @@ std::string Reader::read_string(std::size_t min_length,
                                 std::size_t max_length) {
     return read_string([](std::size_t i, char c) { return true; }, min_length,
                        max_length);
+}
+
+std::string Reader::read_string(std::string const& allowed_chars,
+                                std::size_t exact_length) {
+    return exact_length > 0
+               ? read_string(allowed_chars, exact_length, exact_length)
+               : read_string(allowed_chars, 0, std::string::npos);
 }
 
 std::string Reader::read_string(std::string const& allowed_chars,
