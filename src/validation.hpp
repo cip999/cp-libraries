@@ -91,8 +91,9 @@ ValidationResult operator||(ValidationResult const& a,
 template <class T>
 ValidationResult eq(T const& a, T const& b) {
     return a == b ? ValidationResult("Elements are equal")
-                  : ValidationResult(
-                        FailedValidationException("Elements are not equal"));
+                  : ValidationResult(FailedValidationException(
+                        "Elements are not equal: " + to_string(a) +
+                        " != " + to_string(b)));
 }
 
 template <class T>
@@ -100,7 +101,7 @@ ValidationResult neq(T const& a, T const& b) {
     return !(a == b) ? ValidationResult("Elements are unequal")
                      : ValidationResult(FailedValidationException(
                            "Elements are not unequal: " + to_string(a) +
-                           " != " + to_string(b)));
+                           " == " + to_string(b)));
 }
 
 template <class T>
