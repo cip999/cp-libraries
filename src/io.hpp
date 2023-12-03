@@ -212,17 +212,30 @@ class Reader {
               std::enable_if_t<std::is_same_v<T, std::string>, bool> = true>
     std::vector<std::string> read(std::size_t n);
 
-    template <
-        class V, class T = std::decay_t<decltype(*std::declval<V>().begin())>,
-        std::enable_if_t<!std::is_same_v<std::decay_t<V>, std::string>, bool> =
-            true>
-    V read(std::size_t n);
-
     template <class T>
-    friend Reader& operator>>(Reader& r, T& v);
+    std::vector<std::vector<T>> read(std::size_t n, std::size_t m);
 
-    template <class T>
-    friend Reader& operator>>(Reader& r, std::vector<T>& v);
+    template <class T, class = decltype(std::declval<Reader>().read<T>())>
+    friend Reader& operator>>(Reader& r, T& x) {
+        x = r.read<T>();
+        return r;
+    }
+
+    template <class T, class = decltype(std::declval<Reader>().read<T>())>
+    friend Reader& operator>>(Reader& r, std::vector<T>& v) {
+        v = r.read<T>(v.size());
+        return r;
+    }
+
+    template <class T, class = decltype(std::declval<Reader>().read<T>())>
+    friend Reader& operator>>(Reader& r, std::vector<std::vector<T>>& v) {
+        if (v.size() == 0) {
+            throw InvalidArgumentException(
+                "Both dimensions of the matrix must have positive size");
+        }
+        v = r.read<T>(v.size(), v[0].size());
+        return r;
+    }
 };
 
 void Reader::must_be_space() {
@@ -554,8 +567,8 @@ std::string Reader::read_string_strict(
             }
             if (!check_char(i, c)) {
                 throw FailedValidationException(
-                    "Invalid character '" + to_string(c) +
-                    "' at position " + std::to_string(i));
+                    "Invalid character '" + to_string(c) + "' at position " +
+                    std::to_string(i));
             }
             s.push_back(c);
         }
@@ -666,23 +679,10 @@ std::vector<std::string> Reader::read(std::size_t n) {
     return read_n_strings(n, 0, strict ? " " : "");
 }
 
-template <class V, class T,
-          std::enable_if_t<!std::is_same_v<std::decay_t<V>, std::string>, bool>>
-V Reader::read(std::size_t n) {
-    auto v = read<std::decay_t<T>>(n);
-    return V(v.begin(), v.end());
-}
-
 template <class T>
-Reader& operator>>(Reader& r, T& x) {
-    x = r.read<T>();
-    return r;
-}
-
-template <class T>
-Reader& operator>>(Reader& r, std::vector<T>& v) {
-    v = r.read<T>(v.size());
-    return r;
+std::vector<std::vector<T>> Reader::read(std::size_t n, std::size_t m) {
+    return read_n<std::vector<T>>(
+        n, [this, m]() { return read<T>(m); }, "\n");
 }
 
 class Writer {
