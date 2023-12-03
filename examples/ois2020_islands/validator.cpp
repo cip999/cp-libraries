@@ -15,9 +15,7 @@ void validate(const char* input_file) {
     int C = r.read_integer<int>(MINRC, MAXRC);
     r.must_be_newline();
 
-    std::vector<std::vector<unsigned short>> M(R, std::vector<unsigned short>(C));
-    r >> M;
-
+    auto M = r.read<short>(R, C);
     ASSERT(val::all(M, [](auto const& v) { return val::all_between(v, 0, 1); }))
 
     r.must_be_newline();
