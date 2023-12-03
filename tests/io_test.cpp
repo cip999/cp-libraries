@@ -406,9 +406,7 @@ TEST_F(WriterTest, StreamOperator) {
         {9, 10, 11, 12},
     });
 
-    writer << string_iter << "\n"
-           << int_iter << "\n\n"
-           << int_matrix << "\n";
+    writer << string_iter << "\n" << int_iter << "\n\n" << int_matrix << "\n";
 
     std::string expected =
         "apples meat fish\n"

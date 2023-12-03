@@ -12,9 +12,7 @@
 
 #include "common.hpp"
 
-namespace cplib {
-
-namespace io {
+namespace cplib::io {
 
 class IOException : public std::ios_base::failure, public CplibException {
    public:
@@ -715,8 +713,8 @@ class Writer {
     template <class T>
     void write_floating_point(T x, int fixed_decimals = -1);
 
-    template <class IT>
-    void write_iter(IT const& begin, IT const& end,
+    template <class It>
+    void write_iter(It const& begin, It const& end,
                     std::string const& separator = " ");
 
     template <class V>
@@ -788,10 +786,10 @@ void Writer::write_floating_point(T x, int fixed_decimals) {
     write_string(ss.str());
 }
 
-template <class IT>
-void Writer::write_iter(IT const& begin, IT const& end,
+template <class It>
+void Writer::write_iter(It const& begin, It const& end,
                         std::string const& separator) {
-    for (IT it = begin; it != end; it = std::next(it)) {
+    for (It it = begin; it != end; it = std::next(it)) {
         if (it != begin) write_string(separator);
         write(*it);
     }
@@ -836,6 +834,4 @@ Writer& operator<<(Writer& w, T const& x) {
     return w;
 }
 
-}  // namespace io
-
-}  // namespace cplib
+}  // namespace cplib::io

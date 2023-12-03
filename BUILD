@@ -9,6 +9,12 @@ cc_library(
   deps = [":common"],
 )
 
+cc_library(
+  name = "validation",
+  srcs = ["src/validation.hpp"],
+  deps = [":common"],
+)
+
 cc_test(
   name = "io_test",
   size = "small",
