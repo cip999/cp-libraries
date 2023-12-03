@@ -73,7 +73,12 @@ std::string to_string(T const& x) {
     return "\"" + static_cast<std::string>(x) + "\"";
 }
 
-template <class T, class = decltype(std::to_string(std::declval<T>()))>
+std::string to_string(char c) {
+    return std::string(1, c);
+}
+
+template <class T, class = decltype(std::to_string(std::declval<T>())),
+          std::enable_if_t<!std::is_same_v<std::decay_t<T>, char>, bool> = true>
 std::string to_string(T const& x) {
     return std::to_string(x);
 }
