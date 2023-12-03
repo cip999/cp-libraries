@@ -8,7 +8,7 @@
 #include <variant>
 #include <vector>
 
-#include "common.hpp"
+#include "io.hpp"
 
 #define ASSERT(f)                                                           \
     {                                                                       \
@@ -90,27 +90,68 @@ ValidationResult operator||(ValidationResult const& a,
 
 template <class T>
 ValidationResult eq(T const& a, T const& b) {
-    return a == b ? "Equal elements"
-                  : FailedValidationException("Unequal elements");
+    return a == b ? ValidationResult("Elements are equal")
+                  : ValidationResult(
+                        FailedValidationException("Elements are not equal"));
+}
+
+template <class T>
+ValidationResult neq(T const& a, T const& b) {
+    return !(a == b) ? ValidationResult("Elements are unequal")
+                     : ValidationResult(FailedValidationException(
+                           "Elements are not unequal: " + to_string(a) +
+                           " != " + to_string(b)));
+}
+
+template <class T>
+ValidationResult lt(T const& a, T const& b) {
+    return a < b ? ValidationResult("Comparison satisfied")
+                 : ValidationResult(FailedValidationException(
+                       "Comparison failed: " + to_string(a) +
+                       " >= " + to_string(b)));
+}
+
+template <class T>
+ValidationResult lte(T const& a, T const& b) {
+    return !(b < a) ? ValidationResult("Comparison satisfied")
+                    : ValidationResult(FailedValidationException(
+                          "Comparison failed: " + to_string(a) + " > " +
+                          to_string(b)));
+}
+
+template <class T>
+ValidationResult gt(T const& a, T const& b) {
+    return b < a ? ValidationResult("Comparison satisfied")
+                 : ValidationResult(FailedValidationException(
+                       "Comparison failed: " + to_string(a) +
+                       " <= " + to_string(b)));
+}
+
+template <class T>
+ValidationResult gte(T const& a, T const& b) {
+    return !(a < b) ? ValidationResult("Comparison satisfied")
+                    : ValidationResult(FailedValidationException(
+                          "Comparison failed: " + to_string(a) + " < " +
+                          to_string(b)));
 }
 
 template <class T>
 ValidationResult between(T const& x, T const& low, T const& high) {
-    std::string interval = "[" + to_string(low) + ", " + to_string(high) + ")";
+    std::string interval = "[" + to_string(low) + ", " + to_string(high) + "]";
     if (x < low) {
         return FailedValidationException("Value does not lie in " + interval +
                                          ": " + to_string(x) + " < " +
                                          to_string(low));
-    } else if (!(x < high)) {
+    } else if (high < x) {
         return FailedValidationException("Value does not lie in " + interval +
-                                         ": " + to_string(x) +
-                                         " >= " + to_string(high));
+                                         ": " + to_string(x) + " > " +
+                                         to_string(high));
     }
     return "Value (x = " + to_string(x) + ") lies in " + interval;
 }
 
-template <class It>
-ValidationResult all(It const& begin, It const& end, auto const& predicate) {
+template <class It, class P>
+ValidationResult all(It const& begin, It const& end, P const& predicate) {
     for (It it = begin; it != end; it = std::next(it)) {
         ValidationResult res = predicate(*it);
         if (res.failed()) {
@@ -122,8 +163,8 @@ ValidationResult all(It const& begin, It const& end, auto const& predicate) {
     return std::string("Property satisfied by all elements");
 }
 
-template <class V>
-ValidationResult all(V const& v, auto const& predicate) {
+template <class V, class P>
+ValidationResult all(V const& v, P const& predicate) {
     return all(v.begin(), v.end(), predicate);
 }
 
@@ -168,8 +209,8 @@ ValidationResult sorted(It const& begin, It const& end, bool strict = true,
     return sorted(begin, end, compare);
 }
 
-template <class It>
-ValidationResult sorted(It const& begin, It const& end, auto const& compare) {
+template <class It, class C>
+ValidationResult sorted(It const& begin, It const& end, C const& compare) {
     for (It it = begin; std::next(it) != end; it = std::next(it)) {
         if (!compare(*it, *std::next(it))) {
             int pos = std::distance(begin, it);
@@ -187,8 +228,8 @@ ValidationResult sorted(std::vector<T> const& v, bool strict = true,
     return sorted(v.begin(), v.end(), strict, decreasing);
 }
 
-template <class T>
-ValidationResult sorted(std::vector<T> const& v, auto const& compare) {
+template <class T, class C>
+ValidationResult sorted(std::vector<T> const& v, C const& compare) {
     return sorted(v.begin(), v.end(), compare);
 }
 

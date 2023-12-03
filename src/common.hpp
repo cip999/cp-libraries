@@ -1,37 +1,54 @@
 #include <cstdio>
 #include <exception>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
 namespace cplib {
 
+template <class T>
+struct Limits {
+    static const T MIN = std::numeric_limits<T>::min();
+    static const T MAX = std::numeric_limits<T>::max();
+};
+
 class CplibException : public std::exception {
+   private:
+    const std::string msg_with_prefix;
+
+    inline virtual std::string prefix() const noexcept { return "GENERIC"; }
+    inline std::string add_prefix(std::string const& msg) const noexcept {
+        return prefix() + ": " + msg;
+    }
+
    protected:
     const std::string msg;
 
    public:
     explicit CplibException() = default;
-    explicit CplibException(std::string const& msg) : msg(msg) {}
+    explicit CplibException(std::string const& msg)
+        : msg(msg), msg_with_prefix(add_prefix(msg)) {}
 
     const char* what() const noexcept override { return msg.c_str(); }
 };
 
 class InvalidArgumentException : public CplibException {
-   public:
-    explicit InvalidArgumentException(std::string const& msg)
-        : CplibException(msg) {}
-
-    const char* what() const noexcept override {
-        return std::strcat(new char[]("Invalid argument: "),
-                           CplibException::what());
+   private:
+    inline std::string prefix() const noexcept override {
+        return "INVALID ARGUMENT";
     }
+
+   public:
+    InvalidArgumentException(std::string const& msg) : CplibException(msg) {}
 };
 
 class FailedValidationException : public CplibException {
-   public:
-    explicit FailedValidationException(std::string const& msg)
-        : CplibException(msg) {}
+   private:
+    inline std::string prefix() const noexcept override {
+        return "FAILED VALIDATION";
+    }
 
+   public:
     template <class T>
     static FailedValidationException interval_constraint(std::string var, T low,
                                                          T high) noexcept {
@@ -40,11 +57,10 @@ class FailedValidationException : public CplibException {
                                          " <= " + std::to_string(high));
     }
 
-    const char* what() const noexcept override {
-        return std::strcat(new char[]("Failed validation: "), CplibException::what());
-    }
+    FailedValidationException(std::string const& msg) : CplibException(msg) {}
 
-    std::string what_with_line(const char* file, unsigned int line) noexcept {
+    std::string what_with_line(const char* file,
+                               unsigned int line) const noexcept {
         return "FAILED VALIDATION AT " + std::string(file) +
                "::" + std::to_string(line) + "\n---\n" + msg + "\n---";
     }

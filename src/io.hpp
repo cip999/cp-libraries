@@ -15,47 +15,47 @@
 namespace cplib::io {
 
 class IOException : public CplibException {
-   public:
-    explicit IOException(std::string const& msg) : CplibException(msg) {}
+   private:
+    inline std::string prefix() const noexcept override { return "I/O ERROR"; }
 
-    const char* what() const noexcept override {
-        return CplibException::what();
-    }
+   public:
+    IOException(std::string const& msg) : CplibException(msg) {}
 };
 
 class OpenFailureException : public IOException {
    public:
-    explicit OpenFailureException(std::string const& file_name)
+    OpenFailureException(std::string const& file_name)
         : IOException("Couldn't open " + file_name) {}
-    explicit OpenFailureException(const char* file_name)
-        : OpenFailureException(std::string(file_name)) {}
 };
 
 class EOFException : public IOException {
    public:
-    explicit EOFException() : IOException("Reached EOF") {}
+    EOFException() : IOException("Reached EOF") {}
 };
 
 class UnexpectedReadException : public IOException {
-   public:
-    explicit UnexpectedReadException() = default;
-    explicit UnexpectedReadException(char c)
-        : IOException("Encountered character '" + std::string(1, c) + "'") {}
-    explicit UnexpectedReadException(std::string const& s)
-        : IOException("Expected string \"" + s + "\"") {}
-
-    const char* what() const noexcept override {
-        return std::strcat(new char[]("Unexpected read: "),
-                           IOException::what());
+   private:
+    inline std::string prefix() const noexcept override {
+        return "UNEXPECTED READ";
     }
+
+   public:
+    UnexpectedReadException(char c)
+        : IOException("Encountered character '" + std::string(1, c) + "'") {}
+    UnexpectedReadException(std::string const& s)
+        : IOException("Expected " + s) {}
 };
 
 class OverflowException : public IOException {
+   private:
+    inline std::string prefix() const noexcept override {
+        return "INTEGER OVERFLOW";
+    }
+
    public:
     template <class T>
     explicit OverflowException(T max_integer)
-        : IOException("Integer read overflow: exceeded limit " +
-                      std::to_string(max_integer)) {}
+        : IOException("Exceeded limit " + std::to_string(max_integer)) {}
 };
 
 class Reader {
