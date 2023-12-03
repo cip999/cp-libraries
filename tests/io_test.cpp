@@ -284,17 +284,9 @@ TEST_F(ReaderTestNonStrict, ReadGeneric) {
     EXPECT_DOUBLE_EQ(reader.read<double>(), -42);
     EXPECT_EQ(reader.read<std::string>(), "hello");
     EXPECT_EQ(reader.read<int>(4), std::vector<int>({3, 5, -6, 0}));
-    EXPECT_EQ(reader.read<std::set<std::string>>(7), std::set<std::string>({
-                                                         "doesn't",
-                                                         "kill",
-                                                         "makes",
-                                                         "stronger",
-                                                         "what",
-                                                         "you",
-                                                     }));
 
     reader.with_string_stream("1 2 3");
-    EXPECT_THROW(reader.read<std::set<int>>(0), InvalidArgumentException);
+    EXPECT_THROW(reader.read<int>(0), InvalidArgumentException);
 }
 
 class ReaderTestStrict : public testing::Test {

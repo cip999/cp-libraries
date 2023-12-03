@@ -27,7 +27,7 @@ class CplibException : public std::exception {
    public:
     explicit CplibException() = default;
     explicit CplibException(std::string const& msg)
-        : msg(msg), msg_with_prefix(add_prefix(msg)) {}
+        : msg_with_prefix(add_prefix(msg)), msg(msg) {}
 
     const char* what() const noexcept override { return msg.c_str(); }
 };
