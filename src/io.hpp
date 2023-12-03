@@ -14,10 +14,13 @@
 
 namespace cplib::io {
 
-class IOException : public std::ios_base::failure, public CplibException {
+class IOException : public CplibException {
    public:
-    explicit IOException(std::string const& msg)
-        : std::ios_base::failure(msg) {}
+    explicit IOException(std::string const& msg) : CplibException(msg) {}
+
+    const char* what() const noexcept override {
+        return CplibException::what();
+    }
 };
 
 class OpenFailureException : public IOException {
@@ -35,14 +38,16 @@ class EOFException : public IOException {
 
 class UnexpectedReadException : public IOException {
    public:
-    explicit UnexpectedReadException()
-        : IOException("Encountered an unexpected character") {}
+    explicit UnexpectedReadException() = default;
     explicit UnexpectedReadException(char c)
-        : IOException("Encountered an unexpected character (got '" +
-                      std::string(1, c) + "')") {}
+        : IOException("Encountered character '" + std::string(1, c) + "'") {}
     explicit UnexpectedReadException(std::string const& s)
-        : IOException("Encounterd an unexpected characted (expected " + s +
-                      ")") {}
+        : IOException("Expected string \"" + s + "\"") {}
+
+    const char* what() const noexcept override {
+        return std::strcat(new char[]("Unexpected read: "),
+                           IOException::what());
+    }
 };
 
 class OverflowException : public IOException {
@@ -505,7 +510,12 @@ std::vector<T> Reader::read_n_integers(std::size_t n, T min_value, T max_value,
                : read_n<T>(
                      n,
                      [this, min_value, max_value]() {
-                         return read_integer_strict<T>(min_value, max_value);
+                         T x = read_integer_strict<T>();
+                         if (x < min_value || x > max_value) {
+                             throw FailedValidationException::
+                                 interval_constraint("x", min_value, max_value);
+                         }
+                         return x;
                      },
                      sep);
 }
@@ -635,17 +645,17 @@ std::string Reader::read() {
 
 template <class T, std::enable_if_t<std::is_integral_v<T>, bool>>
 std::vector<T> Reader::read(std::size_t n) {
-    return read_n_integers<T>(n);
+    return read_n_integers<T>(n, strict ? " " : "");
 }
 
 template <class T, std::enable_if_t<std::is_floating_point_v<T>, bool>>
 std::vector<T> Reader::read(std::size_t n) {
-    return read_n_floating_point<T>(n);
+    return read_n_floating_point<T>(n, strict ? " " : "");
 }
 
 template <class T, std::enable_if_t<std::is_same_v<T, std::string>, bool>>
 std::vector<std::string> Reader::read(std::size_t n) {
-    return read_n_strings(n);
+    return read_n_strings(n, 0, strict ? " " : "");
 }
 
 template <class V, class T,
@@ -819,11 +829,12 @@ void Writer::write(V const& v) {
     write_iter(v.begin(), v.end());
 }
 
-template <class M, class,
-          std::enable_if_t<!std::is_same_v<
-                             std::decay_t<decltype(*std::declval<M>().begin())>,
-                             std::string>,
-                         bool>>
+template <
+    class M, class,
+    std::enable_if_t<
+        !std::is_same_v<std::decay_t<decltype(*std::declval<M>().begin())>,
+                        std::string>,
+        bool>>
 void Writer::write(M const& m) {
     write_matrix(m);
 }
