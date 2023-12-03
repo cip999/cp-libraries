@@ -52,7 +52,7 @@ void validate(const char* input_file) {
     r.must_be_eof();
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     assert(argc >= 2);
     const char* input_file = argv[1];
 
