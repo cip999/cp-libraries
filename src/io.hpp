@@ -364,7 +364,7 @@ T Reader::read_unsigned_strict() {
                 throw UnexpectedReadException('0');
             }
             start = false;
-            long long units = static_cast<T>(c - '0');
+            T units = static_cast<T>(c - '0');
             if (n > (limit - units) / T(10)) {
                 throw OverflowException(limit);
             }
